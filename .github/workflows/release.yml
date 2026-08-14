@@ -1,0 +1,44 @@
+name: Build and Release UiVisualDebugger
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix
+
+      - name: Restore dependencies
+        run: dotnet restore UiVisualDebugger.csproj
+
+      - name: Build UiVisualDebugger Executable
+        run: dotnet publish UiVisualDebugger.csproj -c Release -r win-x64 --self-contained false -o ./publish
+
+      - name: Create ZIP Package
+        run: |
+          Compress-Archive -Path ./publish/* -DestinationPath ./UiVisualDebugger-${{ github.ref_name }}-win-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./UiVisualDebugger-${{ github.ref_name }}-win-x64.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

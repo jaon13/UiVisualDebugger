@@ -16,17 +16,25 @@ public class TrayApplicationContext : ApplicationContext
     private readonly ProcessWatcher _watcher;
     private readonly ToolStripMenuItem _autoDetectRightItem;
     private readonly ToolStripMenuItem _autoDetectLeftItem;
+    private readonly ToolStripMenuItem _startupRightItem;
+    private readonly ToolStripMenuItem _startupLeftItem;
 
     public TrayApplicationContext()
     {
         _rightClickMenu = new ContextMenuStrip();
         _leftClickMenu = new ContextMenuStrip();
 
+        bool isStartupOn = StartupManager.IsStartupEnabled();
+
         _autoDetectRightItem = new ToolStripMenuItem("🔍 타겟 자동 감지 (ON)", null, ToggleAutoDetect) { Checked = true };
         _autoDetectLeftItem = new ToolStripMenuItem("🔍 타겟 자동 감지 (ON)", null, ToggleAutoDetect) { Checked = true };
 
+        _startupRightItem = new ToolStripMenuItem($"🚀 윈도우 시작 프로그램 ({(isStartupOn ? "ON" : "OFF")})", null, ToggleStartup) { Checked = isStartupOn };
+        _startupLeftItem = new ToolStripMenuItem($"🚀 윈도우 시작 프로그램 ({(isStartupOn ? "ON" : "OFF")})", null, ToggleStartup) { Checked = isStartupOn };
+
         _rightClickMenu.Items.Add(new ToolStripMenuItem("📸 즉시 스냅샷 덤프 (F12)", null, OnCaptureClicked));
         _rightClickMenu.Items.Add(_autoDetectRightItem);
+        _rightClickMenu.Items.Add(_startupRightItem);
         _rightClickMenu.Items.Add(new ToolStripSeparator());
         _rightClickMenu.Items.Add(new ToolStripMenuItem("📁 결과 저장 폴더 열기", null, OnOpenFolderClicked));
         _rightClickMenu.Items.Add(new ToolStripSeparator());
@@ -36,6 +44,7 @@ public class TrayApplicationContext : ApplicationContext
         _leftClickMenu.Items.Add(new ToolStripSeparator());
         _leftClickMenu.Items.Add(new ToolStripMenuItem("📸 스냅샷 덤프 생성 (F12)", null, OnCaptureClicked));
         _leftClickMenu.Items.Add(_autoDetectLeftItem);
+        _leftClickMenu.Items.Add(_startupLeftItem);
         _leftClickMenu.Items.Add(new ToolStripMenuItem("📁 덤프 저장 폴더 열기", null, OnOpenFolderClicked));
 
         _notifyIcon = new NotifyIcon
@@ -97,6 +106,27 @@ public class TrayApplicationContext : ApplicationContext
         _autoDetectLeftItem.Text = $"🔍 타겟 자동 감지 ({(isEnabled ? "ON" : "OFF")})";
 
         _notifyIcon.ShowBalloonTip(2000, "UiVisualDebugger", $"자동 프로세스 감지 기능이 {(isEnabled ? "활성화" : "비활성화")}되었습니다.", ToolTipIcon.Info);
+    }
+
+    private void ToggleStartup(object? sender, EventArgs e)
+    {
+        bool currentState = StartupManager.IsStartupEnabled();
+        bool newState = !currentState;
+        bool success = StartupManager.SetStartup(newState);
+
+        if (success)
+        {
+            _startupRightItem.Checked = newState;
+            _startupLeftItem.Checked = newState;
+            _startupRightItem.Text = $"🚀 윈도우 시작 프로그램 ({(newState ? "ON" : "OFF")})";
+            _startupLeftItem.Text = $"🚀 윈도우 시작 프로그램 ({(newState ? "ON" : "OFF")})";
+
+            _notifyIcon.ShowBalloonTip(2000, "UiVisualDebugger", $"윈도우 시작 프로그램 등록이 {(newState ? "설정" : "해제")}되었습니다.", ToolTipIcon.Info);
+        }
+        else
+        {
+            _notifyIcon.ShowBalloonTip(2000, "UiVisualDebugger", "시작 프로그램 레지스트리 설정 변경 실패", ToolTipIcon.Warning);
+        }
     }
 
     private void OnOpenFolderClicked(object? sender, EventArgs e)
