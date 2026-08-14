@@ -5,27 +5,33 @@ description: Performs real-time visual UI debugging for WPF (.NET 10/Core) and W
 
 # UI Visual Debugger Agent Skill
 
-본 스킬은 WPF 및 WinForms 애플리케이션의 레이아웃, 정렬, 겹침, 여백 오차, 데이터 바인딩 이상을 시각적(Visual) 및 구조적(JSON) 데이터 기반으로 자동 진단하고 소스 코드를 직접 수정하는 디버깅 지침을 제공합니다.
+This skill provides guidelines and instructions for AI agents to perform real-time visual UI debugging, layout analysis, alignment checking, and source code modifications for WPF and Windows Forms (.NET 10 / .NET Core / .NET Framework) applications using visual screenshots and structured Visual Tree data dumps.
 
-## 외부 스탠드얼론 툴 (UiVisualDebugger) 정보 & 다운로드
-- **GitHub Release (MSI 인스톨러 다운로드)**: [https://github.com/jaon13/UiVisualDebugger/releases](https://github.com/jaon13/UiVisualDebugger/releases)
+## External Tool Information & Releases
+- **GitHub Release (MSI Installer)**: [https://github.com/jaon13/UiVisualDebugger/releases](https://github.com/jaon13/UiVisualDebugger/releases)
 - **GitHub Repository**: [https://github.com/jaon13/UiVisualDebugger.git](https://github.com/jaon13/UiVisualDebugger.git)
-- **로컬 스탠드얼론 경로**: `d:\Johnny\UiVisualDebugger\UiVisualDebugger.csproj`
-- **에이전트 실행 명령**:
+- **Execution Command**:
   ```powershell
-  dotnet run --project d:\Johnny\UiVisualDebugger\UiVisualDebugger.csproj -- attach <ProcessName_or_PID> [OutputDir]
+  UiVisualDebugger.exe attach <ProcessName_or_PID> [OutputDir]
   ```
 
-## 🚀 주요 기능
-1. **Zero Target Code Modification**: 타겟 애플리케이션 소스 코드 변경 0개
-2. **System Tray Resident Daemon**: 윈도우 시작 프로그램 등록 및 시스템 트레이 좌클릭/우클릭 메뉴
-3. **Global Hotkey (`F12`)**: 전역 핫키 수신 시 스냅샷 즉시 덤프
-4. **Auto Process Watcher**: 타겟 앱 시작 시 스크린샷 및 UI 구조 자동 덤프
+## 🚀 Key Features
+1. **Zero Target Code Modification**: Inspects running Windows applications externally without modifying target project source code.
+2. **System Tray Resident Daemon**: Auto-runs on Windows startup with Tray Left-Click quick menu & Right-Click context menu.
+3. **Global Hotkey (`F12`)**: Pressing `F12` instantly dumps active window UI tree & annotated screenshot.
+4. **Auto Process Watcher**: Automatically detects target process startup (`PhMeter.WpfApp`, etc.) and captures UI snapshot.
 
-## 역할 정의
-- **환경**: WPF (.NET 10 / .NET Core / .NET Framework) 및 WinForms (.NET Framework 4.8 / .NET Core)
-- **목표**: `annotated_ui.png`와 `antigravity_ui.json` 데이터를 매칭하여 UI 왜곡/오류 컨트롤을 식별하고 소스 코드(XAML 또는 C# 디자이너)를 직접 수정.
+## Agent Role & Workflow
+- **Target Environments**: WPF (.NET 10 / .NET Core) & WinForms (.NET Framework 4.8 / .NET Core)
+- **Goal**: Match defective UI controls from `annotated_ui.png` with `antigravity_ui.json` automation IDs/names and edit XAML or C# designer source code directly.
 
-## 입력 데이터 규격
-1. `annotated_ui.png`: 빨간색 테두리와 `[1]`, `[2]` 컨트롤 ID 라벨 배지가 표시된 UI 스크린샷 이미지
-2. `antigravity_ui.json`: 각 컨트롤의 `Id`, `ElementType`, `Name`, `AutomationId`, `ParentType`, `ParentName`, `BoundsInWindow` (`X, Y, Width, Height`), `Margin`, `Padding`, `Visibility`, `DataContextType`, `HasBindingError`, `ContentSummary` 계층 구조 데이터
+## Input Artifact Specifications
+1. `annotated_ui.png`: Visual screenshot with red bounding box borders and ID badges `[1]`, `[2]`, `[3]`.
+2. `antigravity_ui.json`: Hierarchical Visual Tree JSON containing `Id`, `ElementType`, `Name`, `AutomationId`, `ParentType`, `ParentName`, `BoundsInWindow` (`X, Y, Width, Height`), `Margin`, `Padding`, `Visibility`, `DataContextType`, and `HasBindingError`.
+
+## Execution Steps for AI Agent
+1. Execute `UiVisualDebugger.exe attach <ProcessName_or_PID>` to collect UI dumps externally.
+2. Inspect `annotated_ui.png` and `antigravity_ui.json` to identify defective control ID badges.
+3. **WPF Projects**: Modify XAML markup (`Grid.Row`, `Margin`, `Width`, `Height`, `Alignment`) and save to trigger Hot Reload.
+4. **WinForms Projects**: Edit `.Designer.cs` or `.cs` code (`Location`, `Size`, `Padding`, `Anchor`, `Dock`) and save.
+5. Provide a summary of modified files, line numbers, updated properties, and technical rationale.
