@@ -30,8 +30,45 @@ public class ExternalUiInspector
         }
 
         using var automation = new UIA3Automation();
-        var app = FlaUI.Core.Application.Attach(process);
-        var mainWindow = app.GetMainWindow(automation);
+        var app = FlaUI.Core.Application.Attach(process.Id);
+
+        Window? mainWindow = null;
+        if (process.MainWindowHandle != IntPtr.Zero)
+        {
+            try
+            {
+                var elem = automation.FromHandle(process.MainWindowHandle);
+                mainWindow = elem?.AsWindow();
+            }
+            catch { }
+        }
+
+        if (mainWindow == null)
+        {
+            try
+            {
+                var desktop = automation.GetDesktop();
+                var processElements = desktop.FindAllChildren(cf => cf.ByProcessId(process.Id));
+                var winElem = processElements.FirstOrDefault(c =>
+                    c.Properties.ControlType.ValueOrDefault == FlaUI.Core.Definitions.ControlType.Window &&
+                    !c.Properties.IsOffscreen.ValueOrDefault);
+
+                winElem ??= processElements.FirstOrDefault(c =>
+                    c.Properties.ControlType.ValueOrDefault == FlaUI.Core.Definitions.ControlType.Window);
+
+                mainWindow = winElem?.AsWindow();
+            }
+            catch { }
+        }
+
+        if (mainWindow == null)
+        {
+            try
+            {
+                mainWindow = app.GetMainWindow(automation, TimeSpan.FromSeconds(3));
+            }
+            catch { }
+        }
 
         if (mainWindow == null)
         {
