@@ -38,10 +38,13 @@ public class ExternalUiInspector
             throw new InvalidOperationException($"Could not find main window for process '{process.ProcessName}' (PID {process.Id})");
         }
 
+        Rectangle windowBounds = Rectangle.Empty;
+        try { windowBounds = mainWindow.BoundingRectangle; } catch { }
+
         // 1. Traverse UI Tree & build flat list
         int idCounter = 1;
         var flatList = new List<UiElementSnapshot>();
-        var rootSnapshot = BuildSnapshot(mainWindow, null, ref idCounter, flatList, mainWindow.BoundingRectangle);
+        var rootSnapshot = BuildSnapshot(mainWindow, null, ref idCounter, flatList, windowBounds);
 
         Directory.CreateDirectory(outputDirectory);
         string jsonFullPath = Path.Combine(outputDirectory, jsonFileName);
@@ -57,7 +60,7 @@ public class ExternalUiInspector
         File.WriteAllText(jsonFullPath, jsonText);
 
         // 3. Capture & Annotate Window Bitmap
-        CaptureAndAnnotateImage(mainWindow, flatList, imgFullPath);
+        CaptureAndAnnotateImage(mainWindow, flatList, imgFullPath, windowBounds);
 
         return (jsonFullPath, imgFullPath);
     }
@@ -87,21 +90,36 @@ public class ExternalUiInspector
         List<UiElementSnapshot> flatList,
         Rectangle windowBounds)
     {
-        var bounds = element.BoundingRectangle;
+        string controlType = "Unknown";
+        string name = "";
+        string autoId = "";
+        string className = "";
+        bool isEnabled = false;
+        bool isOffscreen = false;
+        Rectangle bounds = Rectangle.Empty;
+
+        try { controlType = element.Properties.ControlType.ValueOrDefault.ToString(); } catch { }
+        try { name = element.Properties.Name.ValueOrDefault ?? ""; } catch { }
+        try { autoId = element.Properties.AutomationId.ValueOrDefault ?? ""; } catch { }
+        try { className = element.Properties.ClassName.ValueOrDefault ?? ""; } catch { }
+        try { isEnabled = element.Properties.IsEnabled.ValueOrDefault; } catch { }
+        try { isOffscreen = element.Properties.IsOffscreen.ValueOrDefault; } catch { }
+        try { bounds = element.BoundingRectangle; } catch { }
+
         var snapshot = new UiElementSnapshot
         {
             Id = idCounter++,
-            ControlType = element.Properties.ControlType.Value.ToString(),
-            Name = element.Properties.Name.ValueOrDefault ?? "",
-            AutomationId = element.Properties.AutomationId.ValueOrDefault ?? "",
-            ClassName = element.Properties.ClassName.ValueOrDefault ?? "",
+            ControlType = controlType,
+            Name = name,
+            AutomationId = autoId,
+            ClassName = className,
             ParentType = parent?.ControlType ?? "",
             ParentName = parent?.Name ?? "",
-            IsEnabled = element.Properties.IsEnabled.ValueOrDefault,
-            IsOffscreen = element.Properties.IsOffscreen.ValueOrDefault
+            IsEnabled = isEnabled,
+            IsOffscreen = isOffscreen
         };
 
-        if (bounds != Rectangle.Empty)
+        if (bounds != Rectangle.Empty && windowBounds != Rectangle.Empty)
         {
             int relX = bounds.X - windowBounds.X;
             int relY = bounds.Y - windowBounds.Y;
@@ -132,13 +150,23 @@ public class ExternalUiInspector
         return snapshot;
     }
 
-    private static void CaptureAndAnnotateImage(Window mainWindow, List<UiElementSnapshot> elements, string outputPath)
+    private static void CaptureAndAnnotateImage(Window mainWindow, List<UiElementSnapshot> elements, string outputPath, Rectangle windowBounds)
     {
         try
         {
-            using var image = Capture.Rectangle(mainWindow.BoundingRectangle);
-            using var bitmap = new Bitmap(image.Bitmap);
-            using var g = Graphics.FromImage(bitmap);
+            if (windowBounds.Width <= 0 || windowBounds.Height <= 0)
+            {
+                try { windowBounds = mainWindow.BoundingRectangle; } catch { }
+            }
+
+            if (windowBounds.Width <= 0 || windowBounds.Height <= 0)
+            {
+                Console.WriteLine("[UiVisualDebugger] Window is minimized or has zero bounds. Skipping capture.");
+                return;
+            }
+
+            using Bitmap bitmap = CaptureWindowBitmap(mainWindow, windowBounds);
+            using Graphics g = Graphics.FromImage(bitmap);
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             using var redPen = new Pen(Color.Red, 2);
@@ -175,5 +203,27 @@ public class ExternalUiInspector
         {
             Console.WriteLine($"[UiVisualDebugger] Annotation error: {ex.Message}");
         }
+    }
+
+    private static Bitmap CaptureWindowBitmap(Window mainWindow, Rectangle windowBounds)
+    {
+        // Primary: FlaUI Capture
+        try
+        {
+            using var captured = Capture.Rectangle(windowBounds);
+            if (captured?.Bitmap != null)
+            {
+                return new Bitmap(captured.Bitmap);
+            }
+        }
+        catch { }
+
+        // Fallback: Pure Win32 GDI CopyFromScreen (100% fail-safe against COM 0x80040201 errors)
+        Bitmap bmp = new Bitmap(windowBounds.Width, windowBounds.Height, PixelFormat.Format32bppArgb);
+        using (Graphics g = Graphics.FromImage(bmp))
+        {
+            g.CopyFromScreen(windowBounds.Location, Point.Empty, windowBounds.Size);
+        }
+        return bmp;
     }
 }
